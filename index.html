@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDA SCANNER SYSTEM</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100 min-h-screen">
+    <div class="p-4 max-w-md mx-auto">
+        <div class="bg-white rounded-2xl shadow-xl overflow-hidden">
+            <div class="bg-indigo-600 p-4 text-white text-center">
+                <h1 class="text-lg font-bold">Hệ thống quản lý TAG ID</h1>
+                <p class="text-xs opacity-80">Tự động đồng bộ CLOUD</p>
+            </div>
+
+            <div id="reader" class="w-full"></div>
+
+            <div class="p-4">
+                <div id="result-box" class="hidden mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-center">
+                    <p class="text-xs text-emerald-600 font-bold uppercase">Quét thành công!</p>
+                    <p id="scanned-result" class="text-xl font-black text-slate-800"></p>
+                </div>
+
+                <div class="space-y-3">
+                    <button onclick="startScan()" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold">Bắt đầu Quét</button>
+                    <div id="status" class="text-center text-sm text-slate-500 italic font-medium">Đang chờ quét...</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-4 bg-white rounded-xl p-4 shadow">
+            <h3 class="text-sm font-bold mb-2">Lịch sử quét gần đây:</h3>
+            <ul id="history" class="text-xs space-y-2 text-slate-600"></ul>
+        </div>
+    </div>
+
+    <script>
+        const html5QrCode = new Html5Qrcode("reader");
+        const statusText = document.getElementById('status');
+        const resultBox = document.getElementById('result-box');
+        const resultText = document.getElementById('scanned-result');
+
+        function startScan() {
+            const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+            
+            html5QrCode.start({ facingMode: "environment" }, config, (decodedText) => {
+                // Khi quét thành công:
+                handleSuccess(decodedText);
+            });
+        }
+
+        async function handleSuccess(code) {
+            // Dừng scan tạm thời để xử lý dữ liệu
+            // html5QrCode.pause(); 
+            
+            resultBox.classList.remove('hidden');
+            resultText.innerText = code;
+            statusText.innerText = "⏳ Đang đồng bộ Cloud...";
+
+            // Gửi dữ liệu lên Google Sheet qua Apps Script
+            google.script.run.withSuccessHandler(() => {
+                statusText.innerText = "✅ Đẩy dữ liệu thành công!";
+                addHistory(code);
+                // Sau 2 giây tiếp tục quét tiếp
+                setTimeout(() => {
+                    resultBox.classList.add('hidden');
+                    statusText.innerText = "Sẵn sàng quét tiếp...";
+                }, 2000);
+            }).saveScanData(code); 
+        }
+
+        function addHistory(code) {
+            const li = document.createElement('li');
+            li.className = "border-b pb-1";
+            li.innerHTML = `<b>${new Date().toLocaleTimeString()}</b>: ${code}`;
+            const history = document.getElementById('history');
+            history.insertBefore(li, history.firstChild);
+        }
+    </script>
+</body>
+</html>
