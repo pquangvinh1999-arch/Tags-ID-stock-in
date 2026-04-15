@@ -65,7 +65,7 @@
                 <h3 class="text-[11px] font-bold text-slate-400 uppercase">Danh sách chờ đồng bộ</h3>
             </div>
             
-            <div id="history-list" class="max-h-40 overflow-y-auto pr-1 custom-scrollbar space-y-2">
+            <div id="history-list" class="max-h-60 overflow-y-auto pr-1 custom-scrollbar space-y-2">
                 <div class="text-center text-[10px] text-slate-600 italic py-2">Chưa có mã nào được quét...</div>
             </div>
 
@@ -80,8 +80,11 @@
     <script>
         let html5QrCode;
         let isScanning = false;
-        let scannedDataArray = []; // Mảng lưu trữ các mã đã quét
+        let scannedDataArray = []; 
         const beep = document.getElementById('beep-sound');
+        
+        // Link API của anh
+        const CLOUD_API = 'https://script.google.com/macros/s/AKfycbwbJiVEO-0WCUvKT9Vyg6ub6N-81mTim_uhl-MKMgtAbj4gYpNpB1PF3ngF5F1N2mbKmw/exec';
 
         async function toggleScanner() {
             if (isScanning) {
@@ -116,28 +119,21 @@
         }
 
         function onScanSuccess(decodedText) {
-            // 1. Âm thanh Tít & Rung
             beep.play();
             if (navigator.vibrate) navigator.vibrate(150);
 
-            // 2. Hiệu ứng thị giác
             document.getElementById('main-container').classList.add('success-pulse');
             setTimeout(() => document.getElementById('main-container').classList.remove('success-pulse'), 500);
 
-            // 3. Hiển thị dữ liệu lên màn hình
             const currentTime = new Date().toLocaleTimeString('vi-VN');
             document.getElementById('scanned-result').innerText = decodedText;
             document.getElementById('last-time').innerText = currentTime;
 
-            // 4. LƯU VÀO MẢNG LOCAL (Không gọi API ngay lập tức)
-            // Lấy thêm ngày tháng để truyền lên sheet cho chuẩn
             const fullDateTime = new Date().toLocaleString('vi-VN'); 
             scannedDataArray.push({ barcode: decodedText, time: fullDateTime });
             
-            // Cập nhật giao diện danh sách
             updateListUI();
 
-            // 5. Tự động reset máy quét sau 1.5s
             html5QrCode.pause();
             setTimeout(() => {
                 if (isScanning) html5QrCode.resume();
@@ -145,25 +141,54 @@
             }, 1500);
         }
 
+        // HÀM: Hiển thị giao diện danh sách (Chứa nút Sửa/Xóa)
         function updateListUI() {
             const listContainer = document.getElementById('history-list');
             document.getElementById('scan-count').innerText = scannedDataArray.length + " Tags ID";
             
-            listContainer.innerHTML = ''; // Xóa list cũ
+            listContainer.innerHTML = ''; 
             
-            // Đảo ngược mảng để mã mới quét hiện lên trên cùng
-            [...scannedDataArray].reverse().forEach((item, index) => {
+            // Dùng vòng lặp lùi để mã mới nhất lên đầu, nhưng vẫn giữ đúng index (vị trí) để sửa/xóa
+            for (let i = scannedDataArray.length - 1; i >= 0; i--) {
+                const item = scannedDataArray[i];
                 listContainer.innerHTML += `
-                    <div class="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/10 text-[11px]">
-                        <span class="text-indigo-300 font-bold tracking-wide">${item.barcode}</span>
-                        <span class="text-slate-400 font-medium">${item.time.split(' ')[0]}</span>
+                    <div class="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/10 text-[11px] gap-2">
+                        <div class="flex-1 overflow-hidden">
+                            <div class="text-indigo-300 font-bold tracking-wide truncate">${item.barcode}</div>
+                            <div class="text-slate-400 font-medium text-[9px]">${item.time.split(' ')[0]}</div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="editItem(${i})" class="p-1.5 bg-blue-500/20 text-blue-400 rounded hover:bg-blue-500/40 transition">✏️</button>
+                            <button onclick="deleteItem(${i})" class="p-1.5 bg-red-500/20 text-red-400 rounded hover:bg-red-500/40 transition">❌</button>
+                        </div>
                     </div>
                 `;
-            });
+            }
+
+            if (scannedDataArray.length === 0) {
+                listContainer.innerHTML = '<div class="text-center text-[10px] text-slate-600 italic py-2">Chưa có mã nào được quét...</div>';
+            }
         }
 
-        // 6. HÀM ĐỒNG BỘ TOÀN BỘ LÊN SHEET
-        function syncToServer() {
+        // HÀM: Chỉnh sửa mã
+        function editItem(index) {
+            let newBarcode = prompt("Sửa Tag ID:", scannedDataArray[index].barcode);
+            if (newBarcode !== null && newBarcode.trim() !== "") {
+                scannedDataArray[index].barcode = newBarcode.trim();
+                updateListUI(); // Load lại giao diện
+            }
+        }
+
+        // HÀM: Xóa mã
+        function deleteItem(index) {
+            if (confirm("Có chắc chắn xóa muốn Tag ID này không?")) {
+                scannedDataArray.splice(index, 1); // Cắt 1 phần tử tại vị trí index
+                updateListUI(); // Load lại giao diện
+            }
+        }
+
+        // HÀM: Đồng bộ qua Fetch API
+        async function syncToServer() {
             if (scannedDataArray.length === 0) {
                 alert("Chưa có mã nào để đồng bộ!");
                 return;
@@ -173,23 +198,32 @@
             btnSync.innerHTML = "⏳ ĐANG GỬI DỮ LIỆU...";
             btnSync.disabled = true;
 
-            // Truyền toàn bộ mảng lên Apps Script
-            google.script.run
-                .withSuccessHandler((response) => {
-                    alert("✅ Đã đồng bộ thành công " + response.count + " kiện hàng!");
-                    // Reset mọi thứ sau khi thành công
+            try {
+                // Fetch API gọi đến link Apps Script của anh
+                const response = await fetch(CLOUD_API, {
+                    method: 'POST',
+                    // Dùng text/plain để tránh lỗi bảo mật CORS preflight của Google
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ data: scannedDataArray })
+                });
+
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    alert("✅ Đã đồng bộ thành công " + result.count + " Tags ID!");
                     scannedDataArray = [];
                     updateListUI();
-                    document.getElementById('history-list').innerHTML = '<div class="text-center text-[10px] text-slate-600 italic py-2">Đã đồng bộ xong. Sẵn sàng quét đợt mới...</div>';
-                    btnSync.innerHTML = "☁️ ĐỒNG BỘ LÊN SHEET";
-                    btnSync.disabled = false;
-                })
-                .withFailureHandler((error) => {
-                    alert("❌ Lỗi đồng bộ: " + error);
-                    btnSync.innerHTML = "☁️ ĐỒNG BỘ LÊN SHEET";
-                    btnSync.disabled = false;
-                })
-                .syncBatchData(scannedDataArray); // Gọi hàm mới trong file Code.gs
+                    btnSync.innerHTML = "☁️ ĐỒNG BỘ LÊN CLOUD";
+                } else {
+                    alert("❌ Lỗi Server: " + result.message);
+                    btnSync.innerHTML = "☁️ ĐỒNG BỘ LÊN CLOUD";
+                }
+            } catch (error) {
+                alert("❌ Lỗi mạng hoặc cấu hình API: " + error);
+                btnSync.innerHTML = "☁️ ĐỒNG BỘ LÊN CLOUD";
+            } finally {
+                btnSync.disabled = false;
+            }
         }
     </script>
 </body>
