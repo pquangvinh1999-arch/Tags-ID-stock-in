@@ -83,7 +83,10 @@
         let scannedDataArray = []; 
         const beep = document.getElementById('beep-sound');
         
-        // Link API của anh
+        // CÁC BIẾN KIỂM SOÁT ĐỘ NHẠY (DEBOUNCE)
+        let lastDecodedText = "";
+        let matchCount = 0;
+        
         const CLOUD_API = 'https://script.google.com/macros/s/AKfycbwbJiVEO-0WCUvKT9Vyg6ub6N-81mTim_uhl-MKMgtAbj4gYpNpB1PF3ngF5F1N2mbKmw/exec';
 
         async function toggleScanner() {
@@ -97,7 +100,15 @@
         async function startScanner() {
             const btn = document.getElementById('btn-control');
             html5QrCode = new Html5Qrcode("reader");
-            const config = { fps: 15, qrbox: { width: 250, height: 200 } };
+            
+            // CẤU HÌNH MỚI: Tương đương AppSheet
+            const config = { 
+                fps: 10, // Giảm FPS để tránh bắt vội khung hình bị mờ khi lia máy
+                qrbox: { width: 250, height: 150 }, // Bóp dẹt vùng quét để tập trung chính xác vào mã vạch dài
+                experimentalFeatures: {
+                    useBarCodeDetectorIfSupported: true // Kích hoạt lõi AI nhận diện phần cứng của điện thoại
+                }
+            };
 
             try {
                 await html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess);
@@ -119,26 +130,43 @@
         }
 
         function onScanSuccess(decodedText) {
-            beep.play();
-            if (navigator.vibrate) navigator.vibrate(150);
+            // THUẬT TOÁN ĐẢM BẢO CHÍNH XÁC: Phải đọc cùng 1 mã 2 lần liên tiếp mới lấy
+            if (decodedText === lastDecodedText) {
+                matchCount++;
+            } else {
+                lastDecodedText = decodedText;
+                matchCount = 1;
+            }
 
-            document.getElementById('main-container').classList.add('success-pulse');
-            setTimeout(() => document.getElementById('main-container').classList.remove('success-pulse'), 500);
+            // Chỉ xác nhận khi đã đọc chuẩn 2 lần (Chống quét sượt)
+            if (matchCount >= 2) {
+                html5QrCode.pause(); // Lập tức khóa máy quét lại
 
-            const currentTime = new Date().toLocaleTimeString('vi-VN');
-            document.getElementById('scanned-result').innerText = decodedText;
-            document.getElementById('last-time').innerText = currentTime;
+                beep.play();
+                if (navigator.vibrate) navigator.vibrate(150);
 
-            const fullDateTime = new Date().toLocaleString('vi-VN'); 
-            scannedDataArray.push({ barcode: decodedText, time: fullDateTime });
-            
-            updateListUI();
+                document.getElementById('main-container').classList.add('success-pulse');
+                setTimeout(() => document.getElementById('main-container').classList.remove('success-pulse'), 500);
 
-            html5QrCode.pause();
-            setTimeout(() => {
-                if (isScanning) html5QrCode.resume();
-                document.getElementById('scanned-result').innerText = "ĐANG CHỜ MÃ...";
-            }, 1500);
+                const currentTime = new Date().toLocaleTimeString('vi-VN');
+                document.getElementById('scanned-result').innerText = decodedText;
+                document.getElementById('last-time').innerText = currentTime;
+
+                const fullDateTime = new Date().toLocaleString('vi-VN'); 
+                scannedDataArray.push({ barcode: decodedText, time: fullDateTime });
+                
+                updateListUI();
+
+                // Reset biến đếm sau khi chốt thành công
+                matchCount = 0;
+                lastDecodedText = "";
+
+                // Đợi 1.5s mới cho quét mã tiếp theo
+                setTimeout(() => {
+                    if (isScanning) html5QrCode.resume();
+                    document.getElementById('scanned-result').innerText = "ĐANG CHỜ MÃ...";
+                }, 1500);
+            }
         }
 
         // HÀM: Hiển thị giao diện danh sách (Chứa nút Sửa/Xóa)
@@ -148,7 +176,6 @@
             
             listContainer.innerHTML = ''; 
             
-            // Dùng vòng lặp lùi để mã mới nhất lên đầu, nhưng vẫn giữ đúng index (vị trí) để sửa/xóa
             for (let i = scannedDataArray.length - 1; i >= 0; i--) {
                 const item = scannedDataArray[i];
                 listContainer.innerHTML += `
@@ -199,10 +226,8 @@
             btnSync.disabled = true;
 
             try {
-                // Fetch API gọi đến link Apps Script của anh
                 const response = await fetch(CLOUD_API, {
                     method: 'POST',
-                    // Dùng text/plain để tránh lỗi bảo mật CORS preflight của Google
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                     body: JSON.stringify({ data: scannedDataArray })
                 });
