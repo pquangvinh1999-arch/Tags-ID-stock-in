@@ -16,6 +16,11 @@
         .btn-primary { background: linear-gradient(135deg, #6366f1 0%, #4338ca 100%); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .success-pulse { animation: success-flash 0.5s ease-out; }
         @keyframes success-flash { 0% { background: rgba(16, 185, 129, 0); } 50% { background: rgba(16, 185, 129, 0.2); } 100% { background: rgba(16, 185, 129, 0); } }
+        
+        /* Custom Scrollbar cho danh sách */
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.5); border-radius: 10px; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center p-4">
@@ -28,13 +33,13 @@
         <div id="connection-status" class="h-3 w-3 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981]"></div>
     </header>
 
-    <main class="w-full max-w-md space-y-4">
+    <main class="w-full max-w-md space-y-4 pb-10">
         <div class="glass-card p-2 relative" id="main-container">
             <div id="reader" class="scanner-window rounded-2xl aspect-square bg-black"></div>
         </div>
 
         <div class="glass-card p-6 space-y-4">
-            <div class="text-center py-4 border-b border-white/10">
+            <div class="text-center py-2 border-b border-white/10">
                 <p class="text-slate-400 text-xs font-bold uppercase mb-1">Dữ liệu vừa quét</p>
                 <h2 id="scanned-result" class="text-2xl font-black tracking-wider text-indigo-300">SẴN SÀNG...</h2>
             </div>
@@ -54,14 +59,28 @@
                 ⚡ BẬT MÁY QUÉT
             </button>
         </div>
+
+        <div class="glass-card p-4 space-y-3">
+            <div class="flex justify-between items-center border-b border-white/10 pb-2">
+                <h3 class="text-[11px] font-bold text-slate-400 uppercase">Danh sách chờ đồng bộ</h3>
+            </div>
+            
+            <div id="history-list" class="max-h-40 overflow-y-auto pr-1 custom-scrollbar space-y-2">
+                <div class="text-center text-[10px] text-slate-600 italic py-2">Chưa có mã nào được quét...</div>
+            </div>
+
+            <button onclick="syncToServer()" id="btn-sync" class="w-full bg-emerald-500 hover:bg-emerald-600 transition-colors py-3 rounded-xl font-extrabold text-white shadow-lg shadow-emerald-500/20 mt-2">
+                ☁️ ĐỒNG BỘ LÊN CLOUD
+            </button>
+        </div>
     </main>
 
     <audio id="beep-sound" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3" preload="auto"></audio>
 
     <script>
         let html5QrCode;
-        let scanCounter = 0;
         let isScanning = false;
+        let scannedDataArray = []; // Mảng lưu trữ các mã đã quét
         const beep = document.getElementById('beep-sound');
 
         async function toggleScanner() {
@@ -105,25 +124,72 @@
             document.getElementById('main-container').classList.add('success-pulse');
             setTimeout(() => document.getElementById('main-container').classList.remove('success-pulse'), 500);
 
-            // 3. Hiển thị dữ liệu
+            // 3. Hiển thị dữ liệu lên màn hình
+            const currentTime = new Date().toLocaleTimeString('vi-VN');
             document.getElementById('scanned-result').innerText = decodedText;
-            document.getElementById('last-time').innerText = new Date().toLocaleTimeString();
-            
-            // 4. Gửi dữ liệu lên Google Sheet (API của Apps Script)
-            google.script.run
-                .withSuccessHandler((response) => {
-                    scanCounter++;
-                    document.getElementById('scan-count').innerText = scanCounter + " kiện";
-                    console.log(response.message);
-                })
-                .saveScanData(decodedText);
+            document.getElementById('last-time').innerText = currentTime;
 
-            // 5. Tự động reset máy quét (Dừng 1.5s để tránh quét trùng mã 1 chỗ 2 lần)
+            // 4. LƯU VÀO MẢNG LOCAL (Không gọi API ngay lập tức)
+            // Lấy thêm ngày tháng để truyền lên sheet cho chuẩn
+            const fullDateTime = new Date().toLocaleString('vi-VN'); 
+            scannedDataArray.push({ barcode: decodedText, time: fullDateTime });
+            
+            // Cập nhật giao diện danh sách
+            updateListUI();
+
+            // 5. Tự động reset máy quét sau 1.5s
             html5QrCode.pause();
             setTimeout(() => {
                 if (isScanning) html5QrCode.resume();
                 document.getElementById('scanned-result').innerText = "ĐANG CHỜ MÃ...";
             }, 1500);
+        }
+
+        function updateListUI() {
+            const listContainer = document.getElementById('history-list');
+            document.getElementById('scan-count').innerText = scannedDataArray.length + " Tags ID";
+            
+            listContainer.innerHTML = ''; // Xóa list cũ
+            
+            // Đảo ngược mảng để mã mới quét hiện lên trên cùng
+            [...scannedDataArray].reverse().forEach((item, index) => {
+                listContainer.innerHTML += `
+                    <div class="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/10 text-[11px]">
+                        <span class="text-indigo-300 font-bold tracking-wide">${item.barcode}</span>
+                        <span class="text-slate-400 font-medium">${item.time.split(' ')[0]}</span>
+                    </div>
+                `;
+            });
+        }
+
+        // 6. HÀM ĐỒNG BỘ TOÀN BỘ LÊN SHEET
+        function syncToServer() {
+            if (scannedDataArray.length === 0) {
+                alert("Chưa có mã nào để đồng bộ!");
+                return;
+            }
+
+            const btnSync = document.getElementById('btn-sync');
+            btnSync.innerHTML = "⏳ ĐANG GỬI DỮ LIỆU...";
+            btnSync.disabled = true;
+
+            // Truyền toàn bộ mảng lên Apps Script
+            google.script.run
+                .withSuccessHandler((response) => {
+                    alert("✅ Đã đồng bộ thành công " + response.count + " kiện hàng!");
+                    // Reset mọi thứ sau khi thành công
+                    scannedDataArray = [];
+                    updateListUI();
+                    document.getElementById('history-list').innerHTML = '<div class="text-center text-[10px] text-slate-600 italic py-2">Đã đồng bộ xong. Sẵn sàng quét đợt mới...</div>';
+                    btnSync.innerHTML = "☁️ ĐỒNG BỘ LÊN SHEET";
+                    btnSync.disabled = false;
+                })
+                .withFailureHandler((error) => {
+                    alert("❌ Lỗi đồng bộ: " + error);
+                    btnSync.innerHTML = "☁️ ĐỒNG BỘ LÊN SHEET";
+                    btnSync.disabled = false;
+                })
+                .syncBatchData(scannedDataArray); // Gọi hàm mới trong file Code.gs
         }
     </script>
 </body>
