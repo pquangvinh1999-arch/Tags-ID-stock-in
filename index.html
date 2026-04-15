@@ -3,53 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WHM PRO - SMART SCANNER V3</title>
+    <title>WHM PRO SCANNER</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body { 
-            font-family: 'Plus Jakarta Sans', sans-serif; 
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-            color: #f8fafc;
-        }
-        .glass-card {
-            background: rgba(255, 255, 255, 0.03);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 24px;
-        }
-        .scanner-window {
-            overflow: hidden;
-            border: 2px solid #6366f1;
-            box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
-            position: relative;
-        }
-        .scanner-window::after {
-            content: "";
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            height: 2px;
-            background: #ef4444;
-            box-shadow: 0 0 15px #ef4444;
-            animation: scanning 2s infinite linear;
-            z-index: 10;
-        }
-        @keyframes scanning {
-            0% { top: 0%; }
-            50% { top: 100%; }
-            100% { top: 0%; }
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #6366f1 0%, #4338ca 100%);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .btn-primary:active { transform: scale(0.95); }
-        #reader__dashboard_section_csr button {
-            background: #6366f1 !important; color: white !important;
-            padding: 8px 16px !important; border-radius: 8px !important;
-            text-transform: uppercase !important; font-weight: bold !important;
-        }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #f8fafc; overflow-x: hidden; }
+        .glass-card { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 24px; }
+        .scanner-window { overflow: hidden; border: 2px solid #6366f1; box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); position: relative; }
+        .scanner-window::after { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: #ef4444; box-shadow: 0 0 15px #ef4444; animation: scanning 2s infinite linear; z-index: 10; }
+        @keyframes scanning { 0% { top: 0%; } 50% { top: 100%; } 100% { top: 0%; } }
+        .btn-primary { background: linear-gradient(135deg, #6366f1 0%, #4338ca 100%); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .success-pulse { animation: success-flash 0.5s ease-out; }
+        @keyframes success-flash { 0% { background: rgba(16, 185, 129, 0); } 50% { background: rgba(16, 185, 129, 0.2); } 100% { background: rgba(16, 185, 129, 0); } }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center p-4">
@@ -57,117 +23,107 @@
     <header class="w-full max-w-md mb-6 flex justify-between items-center px-2">
         <div>
             <h1 class="text-xl font-black tracking-tight text-white">WHM PRO <span class="text-indigo-400">SCAN</span></h1>
-            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Enterprise Mapping System</p>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Scanning System By Vinh</p>
         </div>
-        <div class="flex gap-2">
-            <div id="connection-status" class="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
-        </div>
+        <div id="connection-status" class="h-3 w-3 rounded-full bg-emerald-500 shadow-[0_0_10px_#10b981]"></div>
     </header>
 
     <main class="w-full max-w-md space-y-4">
-        
-        <div class="glass-card p-2">
+        <div class="glass-card p-2 relative" id="main-container">
             <div id="reader" class="scanner-window rounded-2xl aspect-square bg-black"></div>
         </div>
 
         <div class="glass-card p-6 space-y-4">
-            <div id="display-container" class="text-center py-4 border-b border-white/10">
+            <div class="text-center py-4 border-b border-white/10">
                 <p class="text-slate-400 text-xs font-bold uppercase mb-1">Dữ liệu vừa quét</p>
-                <h2 id="scanned-result" class="text-2xl font-black tracking-wider text-indigo-300">--- --- ---</h2>
+                <h2 id="scanned-result" class="text-2xl font-black tracking-wider text-indigo-300">SẴN SÀNG...</h2>
             </div>
 
             <div class="grid grid-cols-2 gap-3">
-                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
-                    <p class="text-[9px] text-slate-500 uppercase font-bold">Lần quét cuối</p>
+                <div class="bg-white/5 p-3 rounded-xl border border-white/5 text-center">
+                    <p class="text-[9px] text-slate-500 uppercase font-bold">Lần cuối</p>
                     <p id="last-time" class="text-xs font-bold text-slate-200">--:--:--</p>
                 </div>
-                <div class="bg-white/5 p-3 rounded-xl border border-white/5">
-                    <p class="text-[9px] text-slate-500 uppercase font-bold">Tổng phiên quét</p>
-                    <p id="scan-count" class="text-xs font-bold text-slate-200">0 kiện</p>
+                <div class="bg-white/5 p-3 rounded-xl border border-white/5 text-center">
+                    <p class="text-[9px] text-slate-500 uppercase font-bold">Tổng Tags ID</p>
+                    <p id="scan-count" class="text-xs font-bold text-slate-200">0 Tags ID</p>
                 </div>
             </div>
 
-            <button onclick="startScanning()" id="btn-control" class="btn-primary w-full py-4 rounded-2xl font-extrabold text-white shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2">
-                <span>⚡ BẮT ĐẦU QUÉT</span>
+            <button onclick="toggleScanner()" id="btn-control" class="btn-primary w-full py-4 rounded-2xl font-extrabold text-white shadow-lg shadow-indigo-500/20">
+                ⚡ BẬT MÁY QUÉT
             </button>
         </div>
-
-        <div class="glass-card p-4">
-            <h3 class="text-xs font-bold text-slate-400 uppercase mb-3 flex items-center gap-2">
-                <span class="h-1 w-1 bg-indigo-500 rounded-full"></span> Nhật ký đồng bộ
-            </h3>
-            <div id="history-list" class="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
-                <div class="text-center text-[10px] text-slate-600 italic py-4">Chưa có dữ liệu quét trong phiên này</div>
-            </div>
-        </div>
     </main>
+
+    <audio id="beep-sound" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3" preload="auto"></audio>
 
     <script>
         let html5QrCode;
         let scanCounter = 0;
+        let isScanning = false;
+        const beep = document.getElementById('beep-sound');
 
-        async function startScanning() {
+        async function toggleScanner() {
+            if (isScanning) {
+                await stopScanner();
+            } else {
+                await startScanner();
+            }
+        }
+
+        async function startScanner() {
             const btn = document.getElementById('btn-control');
             html5QrCode = new Html5Qrcode("reader");
-            
-            const config = { 
-                fps: 20, 
-                qrbox: { width: 250, height: 200 },
-                aspectRatio: 1.0
-            };
+            const config = { fps: 15, qrbox: { width: 250, height: 200 } };
 
             try {
-                btn.innerHTML = "<span>🔄 ĐANG CHỜ MÃ...</span>";
-                btn.classList.replace('from-indigo-600', 'from-amber-500');
-                
-                await html5QrCode.start(
-                    { facingMode: "environment" }, 
-                    config, 
-                    onScanSuccess
-                );
+                await html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess);
+                isScanning = true;
+                btn.innerText = "🛑 DỪNG QUÉT";
+                btn.classList.replace('btn-primary', 'bg-red-500');
             } catch (err) {
-                alert("Lỗi truy cập camera: " + err);
+                alert("Không tìm thấy Camera!");
+            }
+        }
+
+        async function stopScanner() {
+            if (html5QrCode) {
+                await html5QrCode.stop();
+                isScanning = false;
+                document.getElementById('btn-control').innerText = "⚡ KÍCH HOẠT MÁY QUÉT";
+                document.getElementById('btn-control').classList.replace('bg-red-500', 'btn-primary');
             }
         }
 
         function onScanSuccess(decodedText) {
-            // Hiệu ứng phản hồi nhanh
-            vibrateDevice();
+            // 1. Âm thanh Tít & Rung
+            beep.play();
+            if (navigator.vibrate) navigator.vibrate(150);
+
+            // 2. Hiệu ứng thị giác
+            document.getElementById('main-container').classList.add('success-pulse');
+            setTimeout(() => document.getElementById('main-container').classList.remove('success-pulse'), 500);
+
+            // 3. Hiển thị dữ liệu
             document.getElementById('scanned-result').innerText = decodedText;
             document.getElementById('last-time').innerText = new Date().toLocaleTimeString();
             
-            // Gửi dữ liệu lên Google Sheet
-            syncToCloud(decodedText);
-        }
+            // 4. Gửi dữ liệu lên Google Sheet (API của Apps Script)
+            google.script.run
+                .withSuccessHandler((response) => {
+                    scanCounter++;
+                    document.getElementById('scan-count').innerText = scanCounter + " kiện";
+                    console.log(response.message);
+                })
+                .saveScanData(decodedText);
 
-        function syncToCloud(data) {
-            const history = document.getElementById('history-list');
-            if(scanCounter === 0) history.innerHTML = ''; // Clear empty state
-            
-            // Hiện trạng thái đang gửi
-            const logId = 'log-' + Date.now();
-            const logEntry = document.createElement('div');
-            logEntry.id = logId;
-            logEntry.className = "flex justify-between items-center bg-white/5 p-2 rounded-lg text-[11px] animate-pulse";
-            logEntry.innerHTML = `
-                <span class="text-slate-300 font-medium">${data}</span>
-                <span class="text-amber-400 font-bold">ĐANG GỬI...</span>
-            `;
-            history.prepend(logEntry);
-
-            // Gọi Google Apps Script (Hàm này anh sẽ viết ở file Code.gs)
-            google.script.run.withSuccessHandler(() => {
-                logEntry.classList.remove('animate-pulse');
-                logEntry.querySelector('span:last-child').innerText = 'THÀNH CÔNG';
-                logEntry.querySelector('span:last-child').className = 'text-emerald-400 font-bold';
-                
-                scanCounter++;
-                document.getElementById('scan-count').innerText = scanCounter + " kiện";
-            }).saveScanData(data);
-        }
-
-        function vibrateDevice() {
-            if (navigator.vibrate) navigator.vibrate(100);
+            // 5. Tự động reset máy quét (Dừng 1.5s để tránh quét trùng mã 1 chỗ 2 lần)
+            html5QrCode.pause();
+            setTimeout(() => {
+                if (isScanning) html5QrCode.resume();
+                document.getElementById('scanned-result').innerText = "ĐANG CHỜ MÃ...";
+            }, 1500);
         }
     </script>
 </body>
