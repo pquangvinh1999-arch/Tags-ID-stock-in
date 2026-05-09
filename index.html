@@ -291,16 +291,20 @@
                 const response = await fetch(CLOUD_API, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ data: scannedDataArray })
+                    // THÊM action: "receive_mobile" để GAS nhận diện đúng module
+                    body: JSON.stringify({ 
+                        action: "receive_mobile", 
+                        data: scannedDataArray 
+                    })
                 });
                 const result = await response.json();
                 if (result.status === "success") {
-                    alert("✅ Đã đồng bộ thành công " + result.count + " Tags ID!");
+                    alert("✅ Đã nhập thành công " + result.count + " Tags ID!");
                     scannedDataArray = [];
                     updateListUI();
                 } else { alert("❌ Lỗi Server: " + result.message); }
             } catch (error) { alert("❌ Lỗi mạng: " + error); } finally {
-                btnSync.innerHTML = "☁️ ĐỒNG BỘ LÊN CLOUD";
+                btnSync.innerHTML = "☁️ NHẬP DỮ LIỆU";
                 btnSync.disabled = false;
             }
         }
