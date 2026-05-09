@@ -27,8 +27,6 @@
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.5); border-radius: 10px; }
-        
-        /* Hiệu ứng khi khóa vị trí */
         .location-locked { border-color: #10b981 !important; box-shadow: 0 0 15px rgba(16, 185, 129, 0.3); }
     </style>
 </head>
@@ -51,23 +49,41 @@
 
     <main class="w-full max-w-md space-y-4 pb-10">
         
-        <!-- PHẦN QUẢN LÝ VỊ TRÍ (MỚI) -->
-        <div class="glass-card p-4 space-y-3">
-            <div class="flex justify-between items-center">
-                <label class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Vị trí kho (Bin/Location)</label>
-                <button onclick="unlockLocation()" id="btn-unlock" class="hidden text-[10px] bg-white/10 hover:bg-white/20 text-indigo-300 px-2 py-1 rounded-lg font-bold transition">🔄 Đổi vị trí</button>
-            </div>
-            <div class="flex gap-2">
-                <input type="text" id="location-input" placeholder="Quét hoặc nhập vị trí..." 
-                       class="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white outline-none focus:border-indigo-500 transition">
-                <button onclick="lockLocation()" id="btn-lock" class="bg-indigo-600 px-4 rounded-xl text-xs font-bold text-white">KHÓA</button>
-            </div>
-        </div>
-
+        <!-- 1. MÁY QUÉT LÊN ĐẦU -->
         <div class="glass-card p-2 relative" id="main-container">
             <div id="reader" class="scanner-window rounded-2xl aspect-square bg-black"></div>
         </div>
 
+        <!-- 2. KHU VỰC NHẬP LIỆU (Vị trí & Tag ID) -->
+        <div class="glass-card p-6 space-y-4">
+            <!-- Ô Vị Trí -->
+            <div class="space-y-2">
+                <div class="flex justify-between items-center">
+                    <label class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Vị trí kho (Bin/Location)</label>
+                    <button onclick="unlockLocation()" id="btn-unlock" class="hidden text-[10px] bg-white/10 hover:bg-white/20 text-indigo-300 px-2 py-1 rounded-lg font-bold transition">🔄 Đổi vị trí</button>
+                </div>
+                <div class="flex gap-2">
+                    <input type="text" id="location-input" placeholder="Quét hoặc nhập vị trí..." 
+                           class="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white outline-none focus:border-indigo-500 transition">
+                    <button onclick="lockLocation()" id="btn-lock" class="bg-indigo-600 px-4 rounded-xl text-xs font-bold text-white">KHÓA</button>
+                </div>
+            </div>
+
+            <!-- Ô Tag ID (Chỉ active khi vị trí đã khóa) -->
+            <div class="space-y-2">
+                <label class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tag ID sản phẩm</label>
+                <input type="text" id="tagid-input" placeholder="Khóa vị trí để nhập Tag ID..." 
+                       disabled
+                       onkeydown="handleTagEnter(event)"
+                       class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white outline-none focus:border-indigo-500 transition disabled:opacity-30 disabled:cursor-not-allowed">
+            </div>
+
+            <button onclick="toggleScanner()" id="btn-control" class="btn-primary w-full py-4 rounded-2xl font-extrabold text-white shadow-lg shadow-indigo-500/20">
+                ⚡ BẬT MÁY QUÉT
+            </button>
+        </div>
+
+        <!-- 3. THÔNG TIN TRẠNG THÁI -->
         <div class="glass-card p-6 space-y-4">
             <div class="text-center py-2 border-b border-white/10">
                 <p id="scan-mode-text" class="text-slate-400 text-xs font-bold uppercase mb-1">Vui lòng chọn vị trí trước</p>
@@ -84,21 +100,16 @@
                     <p id="scan-count" class="text-xs font-bold text-slate-200">0 Tags ID</p>
                 </div>
             </div>
-
-            <button onclick="toggleScanner()" id="btn-control" class="btn-primary w-full py-4 rounded-2xl font-extrabold text-white shadow-lg shadow-indigo-500/20">
-                ⚡ BẬT MÁY QUÉT
-            </button>
         </div>
 
+        <!-- 4. DANH SÁCH CHỜ -->
         <div class="glass-card p-4 space-y-3">
             <div class="flex justify-between items-center border-b border-white/10 pb-2">
                 <h3 class="text-[11px] font-bold text-slate-400 uppercase">Danh sách chờ đồng bộ</h3>
             </div>
-            
             <div id="history-list" class="max-h-60 overflow-y-auto pr-1 custom-scrollbar space-y-2">
                 <div class="text-center text-[10px] text-slate-600 italic py-2">Chưa có mã nào được quét...</div>
             </div>
-
             <button onclick="syncToServer()" id="btn-sync" class="w-full bg-emerald-500 hover:bg-emerald-600 transition-colors py-3 rounded-xl font-extrabold text-white shadow-lg shadow-emerald-500/20 mt-2">
                 ☁️ NHẬP DỮ LIỆU
             </button>
@@ -124,7 +135,7 @@
             }
         }
 
-        // --- LOGIC QUÉT MÃ & VỊ TRÍ ---
+        // --- LOGIC QUÉT MÃ & NHẬP LIỆU ---
         let html5QrCode;
         let isScanning = false;
         let scannedDataArray = []; 
@@ -136,9 +147,9 @@
         
         const CLOUD_API = 'https://script.google.com/macros/s/AKfycbyMECd-im1zwQJ8TQEgDbJF3O6go4uQLSl9UoIoTxnQjgY9WbufHwt8JWkyhVOPBKgn/exec';
 
-        // Quản lý khóa/mở vị trí
         function lockLocation() {
             const input = document.getElementById('location-input');
+            const tagInput = document.getElementById('tagid-input');
             if (input.value.trim() === "") {
                 alert("Vui lòng quét hoặc nhập vị trí!");
                 return;
@@ -146,11 +157,15 @@
             currentLocation = input.value.trim();
             isLocationLocked = true;
             
-            // UI Updates
             input.readOnly = true;
             input.classList.add('location-locked');
             document.getElementById('btn-lock').classList.add('hidden');
             document.getElementById('btn-unlock').classList.remove('hidden');
+            
+            // Tự động nhảy sang ô Tag ID và focus
+            tagInput.disabled = false;
+            tagInput.focus();
+            
             document.getElementById('scan-mode-text').innerText = "ĐANG QUÉT TAG ID CHO: " + currentLocation;
             document.getElementById('scan-mode-text').classList.replace('text-slate-400', 'text-emerald-400');
         }
@@ -158,12 +173,29 @@
         function unlockLocation() {
             isLocationLocked = false;
             const input = document.getElementById('location-input');
+            const tagInput = document.getElementById('tagid-input');
             input.readOnly = false;
             input.classList.remove('location-locked');
             document.getElementById('btn-lock').classList.remove('hidden');
             document.getElementById('btn-unlock').classList.add('hidden');
+            
+            tagInput.disabled = true;
+            tagInput.value = "";
+            input.focus();
+            
             document.getElementById('scan-mode-text').innerText = "Vui lòng chọn vị trí trước";
             document.getElementById('scan-mode-text').classList.replace('text-emerald-400', 'text-slate-400');
+        }
+
+        // Xử lý nhấn Enter khi nhập tay Tag ID
+        function handleTagEnter(event) {
+            if (event.key === 'Enter') {
+                const val = event.target.value.trim();
+                if (val !== "") {
+                    processFinalTag(val);
+                    event.target.value = ""; // Xóa ô nhập sau khi xong
+                }
+            }
         }
 
         async function toggleScanner() {
@@ -196,15 +228,17 @@
         }
 
         function onScanSuccess(decodedText) {
-            // 1. Nếu chưa khóa vị trí -> Tự động điền vào ô vị trí và khóa lại
-            if (!isLocationLocked) {
+            const activeEl = document.activeElement;
+
+            // 1. Nếu đang focus vào ô vị trí (hoặc chưa khóa vị trí) -> Điền vào vị trí
+            if (!isLocationLocked || activeEl.id === 'location-input') {
                 document.getElementById('location-input').value = decodedText;
                 lockLocation();
                 beep.play();
                 return;
             }
 
-            // 2. Nếu đã khóa vị trí -> Quét Tag ID
+            // 2. Nếu đang focus vào ô Tag ID (hoặc đã khóa vị trí) -> Quét Tag ID
             if (decodedText === lastDecodedText) { matchCount++; } else { lastDecodedText = decodedText; matchCount = 1; }
             
             if (matchCount >= 2) {
@@ -214,19 +248,8 @@
                 document.getElementById('main-container').classList.add('success-pulse');
                 setTimeout(() => document.getElementById('main-container').classList.remove('success-pulse'), 500);
                 
-                const currentTime = new Date().toLocaleTimeString('vi-VN');
-                document.getElementById('scanned-result').innerText = decodedText;
-                document.getElementById('last-time').innerText = currentTime;
+                processFinalTag(decodedText);
                 
-                const fullDateTime = new Date().toLocaleString('vi-VN'); 
-                // LƯU CẢ VỊ TRÍ VÀ TAG ID
-                scannedDataArray.push({ 
-                    location: currentLocation, 
-                    barcode: decodedText, 
-                    time: fullDateTime 
-                });
-                
-                updateListUI();
                 matchCount = 0;
                 lastDecodedText = "";
                 setTimeout(() => {
@@ -234,6 +257,25 @@
                     document.getElementById('scanned-result').innerText = "ĐANG CHỜ MÃ...";
                 }, 1500);
             }
+        }
+
+        // Hàm xử lý chung khi một Tag ID được xác nhận (từ quét hoặc nhập tay)
+        function processFinalTag(tagID) {
+            beep.play();
+            if (navigator.vibrate) navigator.vibrate(150);
+            
+            const currentTime = new Date().toLocaleTimeString('vi-VN');
+            document.getElementById('scanned-result').innerText = tagID;
+            document.getElementById('last-time').innerText = currentTime;
+            
+            const fullDateTime = new Date().toLocaleString('vi-VN'); 
+            scannedDataArray.push({ 
+                location: currentLocation, 
+                barcode: tagID, 
+                time: fullDateTime 
+            });
+            
+            updateListUI();
         }
 
         function updateListUI() {
@@ -265,11 +307,9 @@
         function editItem(index) {
             const item = scannedDataArray[index];
             const newLoc = prompt("Sửa Vị Trí (Bin):", item.location);
-            if (newLoc === null) return; // Hủy sửa
-
+            if (newLoc === null) return;
             const newBarcode = prompt("Sửa Tag ID:", item.barcode);
-            if (newBarcode === null) return; // Hủy sửa
-
+            if (newBarcode === null) return;
             scannedDataArray[index].location = newLoc.trim();
             scannedDataArray[index].barcode = newBarcode.trim();
             updateListUI();
@@ -291,7 +331,6 @@
                 const response = await fetch(CLOUD_API, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    // THÊM action: "receive_mobile" để GAS nhận diện đúng module
                     body: JSON.stringify({ 
                         action: "receive_mobile", 
                         data: scannedDataArray 
