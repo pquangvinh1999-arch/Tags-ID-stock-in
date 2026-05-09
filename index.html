@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>WHMPRO | By Vinh </title>
     
-    <!-- PWA CONFIG - THÊM MỚI -->
+    <!-- PWA CONFIG -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0f172a">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -27,14 +27,17 @@
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.5); border-radius: 10px; }
+        
+        /* Hiệu ứng khi khóa vị trí */
+        .location-locked { border-color: #10b981 !important; box-shadow: 0 0 15px rgba(16, 185, 129, 0.3); }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center p-4">
 
-    <!-- NÚT CÀI ĐẶT APP - THÊM MỚI (Ẩn mặc định) -->
+    <!-- NÚT CÀI ĐẶT APP -->
     <div id="install-banner" class="fixed top-4 right-4 z-50 hidden">
         <button onclick="installPWA()" class="bg-indigo-500 text-white px-4 py-2 rounded-full text-xs font-bold shadow-xl flex items-center gap-2 animate-bounce">
-            <span>📥 Cài App</span>
+            <span>📥 Cài Đặt App</span>
         </button>
     </div>
 
@@ -47,13 +50,27 @@
     </header>
 
     <main class="w-full max-w-md space-y-4 pb-10">
+        
+        <!-- PHẦN QUẢN LÝ VỊ TRÍ (MỚI) -->
+        <div class="glass-card p-4 space-y-3">
+            <div class="flex justify-between items-center">
+                <label class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Vị trí kho (Bin/Location)</label>
+                <button onclick="unlockLocation()" id="btn-unlock" class="hidden text-[10px] bg-white/10 hover:bg-white/20 text-indigo-300 px-2 py-1 rounded-lg font-bold transition">🔄 Đổi vị trí</button>
+            </div>
+            <div class="flex gap-2">
+                <input type="text" id="location-input" placeholder="Quét hoặc nhập vị trí..." 
+                       class="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-bold text-white outline-none focus:border-indigo-500 transition">
+                <button onclick="lockLocation()" id="btn-lock" class="bg-indigo-600 px-4 rounded-xl text-xs font-bold text-white">KHÓA</button>
+            </div>
+        </div>
+
         <div class="glass-card p-2 relative" id="main-container">
             <div id="reader" class="scanner-window rounded-2xl aspect-square bg-black"></div>
         </div>
 
         <div class="glass-card p-6 space-y-4">
             <div class="text-center py-2 border-b border-white/10">
-                <p class="text-slate-400 text-xs font-bold uppercase mb-1">Dữ liệu vừa quét</p>
+                <p id="scan-mode-text" class="text-slate-400 text-xs font-bold uppercase mb-1">Vui lòng chọn vị trí trước</p>
                 <h2 id="scanned-result" class="text-2xl font-black tracking-wider text-indigo-300">SẴN SÀNG...</h2>
             </div>
 
@@ -83,7 +100,7 @@
             </div>
 
             <button onclick="syncToServer()" id="btn-sync" class="w-full bg-emerald-500 hover:bg-emerald-600 transition-colors py-3 rounded-xl font-extrabold text-white shadow-lg shadow-emerald-500/20 mt-2">
-                ☁️ ĐỒNG BỘ LÊN CLOUD
+                ☁️ NHẬP DỮ LIỆU
             </button>
         </div>
     </main>
@@ -91,33 +108,63 @@
     <audio id="beep-sound" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3" preload="auto"></audio>
 
     <script>
-        // --- PHẦN LOGIC CÀI ĐẶT APP (PWA) ---
+        // --- PWA ---
         let deferredPrompt;
         window.addEventListener('beforeinstallprompt', (e) => {
             e.preventDefault();
             deferredPrompt = e;
             document.getElementById('install-banner').style.display = 'block';
         });
-
         async function installPWA() {
             if (deferredPrompt) {
                 deferredPrompt.prompt();
                 const { outcome } = await deferredPrompt.userChoice;
-                console.log(`User response to install prompt: ${outcome}`);
                 deferredPrompt = null;
                 document.getElementById('install-banner').style.display = 'none';
             }
         }
-        // ------------------------------------
 
+        // --- LOGIC QUÉT MÃ & VỊ TRÍ ---
         let html5QrCode;
         let isScanning = false;
         let scannedDataArray = []; 
+        let currentLocation = "";
+        let isLocationLocked = false;
         const beep = document.getElementById('beep-sound');
         let lastDecodedText = "";
         let matchCount = 0;
         
         const CLOUD_API = 'https://script.google.com/macros/s/AKfycbyMECd-im1zwQJ8TQEgDbJF3O6go4uQLSl9UoIoTxnQjgY9WbufHwt8JWkyhVOPBKgn/exec';
+
+        // Quản lý khóa/mở vị trí
+        function lockLocation() {
+            const input = document.getElementById('location-input');
+            if (input.value.trim() === "") {
+                alert("Vui lòng quét hoặc nhập vị trí!");
+                return;
+            }
+            currentLocation = input.value.trim();
+            isLocationLocked = true;
+            
+            // UI Updates
+            input.readOnly = true;
+            input.classList.add('location-locked');
+            document.getElementById('btn-lock').classList.add('hidden');
+            document.getElementById('btn-unlock').classList.remove('hidden');
+            document.getElementById('scan-mode-text').innerText = "ĐANG QUÉT TAG ID CHO: " + currentLocation;
+            document.getElementById('scan-mode-text').classList.replace('text-slate-400', 'text-emerald-400');
+        }
+
+        function unlockLocation() {
+            isLocationLocked = false;
+            const input = document.getElementById('location-input');
+            input.readOnly = false;
+            input.classList.remove('location-locked');
+            document.getElementById('btn-lock').classList.remove('hidden');
+            document.getElementById('btn-unlock').classList.add('hidden');
+            document.getElementById('scan-mode-text').innerText = "Vui lòng chọn vị trí trước";
+            document.getElementById('scan-mode-text').classList.replace('text-emerald-400', 'text-slate-400');
+        }
 
         async function toggleScanner() {
             if (isScanning) { await stopScanner(); } else { await startScanner(); }
@@ -149,18 +196,36 @@
         }
 
         function onScanSuccess(decodedText) {
+            // 1. Nếu chưa khóa vị trí -> Tự động điền vào ô vị trí và khóa lại
+            if (!isLocationLocked) {
+                document.getElementById('location-input').value = decodedText;
+                lockLocation();
+                beep.play();
+                return;
+            }
+
+            // 2. Nếu đã khóa vị trí -> Quét Tag ID
             if (decodedText === lastDecodedText) { matchCount++; } else { lastDecodedText = decodedText; matchCount = 1; }
+            
             if (matchCount >= 2) {
                 html5QrCode.pause();
                 beep.play();
                 if (navigator.vibrate) navigator.vibrate(150);
                 document.getElementById('main-container').classList.add('success-pulse');
                 setTimeout(() => document.getElementById('main-container').classList.remove('success-pulse'), 500);
+                
                 const currentTime = new Date().toLocaleTimeString('vi-VN');
                 document.getElementById('scanned-result').innerText = decodedText;
                 document.getElementById('last-time').innerText = currentTime;
+                
                 const fullDateTime = new Date().toLocaleString('vi-VN'); 
-                scannedDataArray.push({ barcode: decodedText, time: fullDateTime });
+                // LƯU CẢ VỊ TRÍ VÀ TAG ID
+                scannedDataArray.push({ 
+                    location: currentLocation, 
+                    barcode: decodedText, 
+                    time: fullDateTime 
+                });
+                
                 updateListUI();
                 matchCount = 0;
                 lastDecodedText = "";
@@ -180,7 +245,9 @@
                 listContainer.innerHTML += `
                     <div class="flex justify-between items-center bg-white/5 p-2 rounded-lg border border-white/10 text-[11px] gap-2">
                         <div class="flex-1 overflow-hidden">
-                            <div class="text-indigo-300 font-bold tracking-wide truncate">${item.barcode}</div>
+                            <div class="text-indigo-300 font-bold tracking-wide truncate">
+                                <span class="text-emerald-400">[${item.location}]</span> ${item.barcode}
+                            </div>
                             <div class="text-slate-400 font-medium text-[9px]">${item.time.split(' ')[0]}</div>
                         </div>
                         <div class="flex gap-2">
@@ -196,11 +263,16 @@
         }
 
         function editItem(index) {
-            let newBarcode = prompt("Sửa Tag ID:", scannedDataArray[index].barcode);
-            if (newBarcode !== null && newBarcode.trim() !== "") {
-                scannedDataArray[index].barcode = newBarcode.trim();
-                updateListUI();
-            }
+            const item = scannedDataArray[index];
+            const newLoc = prompt("Sửa Vị Trí (Bin):", item.location);
+            if (newLoc === null) return; // Hủy sửa
+
+            const newBarcode = prompt("Sửa Tag ID:", item.barcode);
+            if (newBarcode === null) return; // Hủy sửa
+
+            scannedDataArray[index].location = newLoc.trim();
+            scannedDataArray[index].barcode = newBarcode.trim();
+            updateListUI();
         }
 
         function deleteItem(index) {
@@ -233,7 +305,6 @@
             }
         }
 
-        // Đăng ký Service Worker để chạy app
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('sw.js').catch(err => console.log('SW error:', err));
